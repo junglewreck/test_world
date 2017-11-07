@@ -65,7 +65,12 @@
 			Physijs.scripts.worker = 'physijs_worker.js';
 			Physijs.scripts.ammo = 'js/ammo.js';
 
-			var camera, scene, renderer, controls;
+
+			var initScene, init, render, renderer, controls, _boxes = [], spawnBox,
+				ground_material, box_material, 
+				renderer, render_stats, physics_stats, scene, ground, light, camera,
+				vehicle_body, vehicle, loader;
+			
 			var objects = [];
 			var raycaster;
 			var blocker = document.getElementById( 'blocker' );
@@ -104,7 +109,7 @@
 			} else {
 				instructions.innerHTML = 'Your browser doesn\'t seem to support Pointer Lock API';
 			}
-			init();
+			initScene();
 			animate();
 			var controlsEnabled = false;
 			var moveForward = false;
@@ -115,16 +120,50 @@
 			var prevTime = performance.now();
 			var velocity = new THREE.Vector3();
 			var direction = new THREE.Vector3();
-			function init() {
+
+
+			function initScene() {
+				renderer = new THREE.WebGLRenderer();
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				document.body.appendChild( renderer.domElement );
+				//
+				window.addEventListener( 'resize', onWindowResize, false );
 				camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 1000 );
-				scene = new THREE.Scene();
-				scene.background = new THREE.Color( 0xffffff );
-				scene.fog = new THREE.Fog( 0xffffff, 0, 750 );
-				var light = new THREE.HemisphereLight( 0xeeeeff, 0x777788, 0.75 );
-				light.position.set( 0.5, 1, 0.75 );
-				scene.add( light );
+
+				// scene = new THREE.Scene();
+				// scene.background = new THREE.Color( 0xffffff );
+				// scene.fog = new THREE.Fog( 0xffffff, 0, 750 );
+				// var light = new THREE.HemisphereLight( 0xeeeeff, 0x777788, 0.75 );
+				// light.position.set( 0.5, 1, 0.75 );
+				// scene.add( light );
+				// controls = new THREE.PointerLockControls( camera );
+				// scene.add( controls.getObject() );
+
+				render_stats = new Stats();
+				render_stats.domElement.style.position = 'absolute';
+				render_stats.domElement.style.top = '0px';
+				render_stats.domElement.style.zIndex = 100;
+				document.body.appendChild( render_stats.domElement );
+
+				physics_stats = new Stats();
+				physics_stats.domElement.style.position = 'absolute';
+				physics_stats.domElement.style.top = '50px';
+				physics_stats.domElement.style.zIndex = 100;
+				document.body.appendChild( physics_stats.domElement );
+
+				scene = new Physijs.Scene;
+				scene.setGravity(new THREE.Vector3( 0, -30, 0 ));
 				controls = new THREE.PointerLockControls( camera );
 				scene.add( controls.getObject() );
+				scene.addEventListener(
+							'update',
+							function() {
+								scene.simulate( undefined, 1 );
+								physics_stats.update();
+							}
+						);
+
 				var onKeyDown = function ( event ) {
 					switch ( event.keyCode ) {
 						case 38: // up
@@ -171,25 +210,80 @@
 				document.addEventListener( 'keydown', onKeyDown, false );
 				document.addEventListener( 'keyup', onKeyUp, false );
 				raycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, - 1, 0 ), 0, 10 );
+				
+	
 				// floor
-				var floorGeometry = new THREE.PlaneGeometry( 2000, 2000, 100, 100 );
-				floorGeometry.rotateX( - Math.PI / 2 );
-				for ( var i = 0, l = floorGeometry.vertices.length; i < l; i ++ ) {
-					var vertex = floorGeometry.vertices[ i ];
-					vertex.x += Math.random() * 20 - 10;
-					vertex.y += Math.random() * 2;
-					vertex.z += Math.random() * 20 - 10;
-				}
-				for ( var i = 0, l = floorGeometry.faces.length; i < l; i ++ ) {
-					var face = floorGeometry.faces[ i ];
-					face.vertexColors[ 0 ] = new THREE.Color().setHSL( Math.random() * 0.3 + 0.5, 0.75, Math.random() * 0.25 + 0.75 );
-					face.vertexColors[ 1 ] = new THREE.Color().setHSL( Math.random() * 0.3 + 0.5, 0.75, Math.random() * 0.25 + 0.75 );
-					face.vertexColors[ 2 ] = new THREE.Color().setHSL( Math.random() * 0.3 + 0.5, 0.75, Math.random() * 0.25 + 0.75 );
-				}
-				var floorMaterial = new THREE.MeshBasicMaterial( { vertexColors: THREE.VertexColors } );
-				var floor = new THREE.Mesh( floorGeometry, floorMaterial );
-				scene.add( floor );
+				// var floorGeometry = new THREE.PlaneGeometry( 2000, 2000, 100, 100 );
+				// floorGeometry.rotateX( - Math.PI / 2 );
+				// for ( var i = 0, l = floorGeometry.vertices.length; i < l; i ++ ) {
+				// 	var vertex = floorGeometry.vertices[ i ];
+				// 	vertex.x += Math.random() * 20 - 10;
+				// 	vertex.y += Math.random() * 2;
+				// 	vertex.z += Math.random() * 20 - 10;
+				// }
+				// for ( var i = 0, l = floorGeometry.faces.length; i < l; i ++ ) {
+				// 	var face = floorGeometry.faces[ i ];
+				// 	face.vertexColors[ 0 ] = new THREE.Color().setHSL( Math.random() * 0.3 + 0.5, 0.75, Math.random() * 0.25 + 0.75 );
+				// 	face.vertexColors[ 1 ] = new THREE.Color().setHSL( Math.random() * 0.3 + 0.5, 0.75, Math.random() * 0.25 + 0.75 );
+				// 	face.vertexColors[ 2 ] = new THREE.Color().setHSL( Math.random() * 0.3 + 0.5, 0.75, Math.random() * 0.25 + 0.75 );
+				// }
+				// var floorMaterial = new THREE.MeshBasicMaterial( { vertexColors: THREE.VertexColors } );
+				// var floor = new THREE.Mesh( floorGeometry, floorMaterial );
+				// scene.add( floor );
+				
+
+
+						// Light
+				light = new THREE.DirectionalLight( 0xFFFFFF );
+				light.position.set( 20, 40, -15 );
+				light.target.position.copy( scene.position );
+				light.castShadow = true;
+				light.shadowCameraLeft = -60;
+				light.shadowCameraTop = -60;
+				light.shadowCameraRight = 60;
+				light.shadowCameraBottom = 60;
+				light.shadowCameraNear = 20;
+				light.shadowCameraFar = 200;
+				light.shadowBias = -.0001
+				light.shadowMapWidth = light.shadowMapHeight = 2048;
+				light.shadowDarkness = .7;
+				scene.add( light );
+
+		
+				// Loader
+				loader = new THREE.TextureLoader();	
+				// Ground
+				ground_material = Physijs.createMaterial(
+					new THREE.MeshLambertMaterial({ map: loader.load( 'images/rocks.jpg' ) }),
+					.8, // high friction
+					.3 // low restitution
+				);
+				ground_material.map.wrapS = ground_material.map.wrapT = THREE.RepeatWrapping;
+				ground_material.map.repeat.set( 3, 3 );
+				
+				ground = new Physijs.BoxMesh(
+					new THREE.BoxGeometry(100, 1, 100),
+					ground_material,
+					0 // mass
+				);
+				ground.receiveShadow = true;
+				scene.add( ground );
+	
+				// spawnBox();
+				
+				requestAnimationFrame( animate );
+				scene.simulate();
+
+				};
+
+
+
+
 				// objects
+
+
+
+
 				// CHUVAK
 				var particleMaterial = new THREE.MeshBasicMaterial();
 				particleMaterial.map = THREE.ImageUtils.loadTexture('patrik_skin.jpg');
@@ -230,13 +324,8 @@
 				// }
 
 				//
-				renderer = new THREE.WebGLRenderer();
-				renderer.setPixelRatio( window.devicePixelRatio );
-				renderer.setSize( window.innerWidth, window.innerHeight );
-				document.body.appendChild( renderer.domElement );
-				//
-				window.addEventListener( 'resize', onWindowResize, false );
-			}
+
+			
 			function onWindowResize() {
 				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
@@ -274,7 +363,9 @@
 					prevTime = time;
 				}
 				renderer.render( scene, camera );
-			}
+				render_stats.update();
+			};
+
 		</script>
 	</body>
 </html>
