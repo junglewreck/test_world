@@ -1400,3 +1400,4 @@ window.Physijs = (function() {
 	};
 
 	return Physijs;
+})();
